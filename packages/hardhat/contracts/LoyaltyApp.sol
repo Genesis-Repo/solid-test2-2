@@ -2,17 +2,24 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract LoyaltyApp is ERC20 {
+    using EnumerableSet for EnumerableSet.UintSet;
+
     address public owner;
     mapping(address => uint256) public loyaltyPoints;
     mapping(address => uint256) public votingPower;
     mapping(address => address) public delegatedVotingPower;
+    mapping(uint256 => mapping(address => uint256)) public snapshotVotingPower;
+
+    EnumerableSet.UintSet private snapshotIds;
 
     event LoyaltyPointsEarned(address indexed user, uint256 points);
     event LoyaltyPointsRedeemed(address indexed user, uint256 points);
     event Voted(address indexed user, uint256 points);
     event VotingPowerDelegated(address indexed delegator, address indexed delegatee, uint256 points);
+    event SnapshotAdded(uint256 snapshotId);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only contract owner can call this function");
@@ -50,6 +57,15 @@ contract LoyaltyApp is ERC20 {
 
         delegatedVotingPower[msg.sender] = delegatee;
         emit VotingPowerDelegated(msg.sender, delegatee, votingPower[msg.sender]);
+    }
+
+    function snapshotVotingPowerForBlock(uint256 snapshotId) external {
+        require(!snapshotIds.contains(snapshotId), "Snapshot ID already exists");
+        snapshotIds.add(snapshotId);
+        for (uint256 i = 0; i < snapshotIds.length(); i++) {
+            snapshotVotingPower[snapshotId][msg.sender] = votingPower[msg.sender];
+        }
+        emit SnapshotAdded(snapshotId);
     }
 
     function transfer(address recipient, uint256 amount) public override returns (bool) {
